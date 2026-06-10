@@ -8,18 +8,28 @@ A robotics education platform for the Duckiebot DB21J. Students complete program
 
 Install these extensions (search by name in the Extensions panel):
 
-| Extension | Why |
-|-----------|-----|
-| **Python** (`ms-python.python`) | Python language support, linting, debugging |
-| **Pylance** (`ms-python.vscode-pylance`) | Fast type checking and autocomplete (installed automatically with Python) |
-| **Jupyter** (`ms-toolsai.jupyter`) | Run `.ipynb` notebooks directly in VSCode |
+Extension
+
+Why
+
+**Python** (`ms-python.python`)
+
+Python language support, linting, debugging
+
+**Pylance** (`ms-python.vscode-pylance`)
+
+Fast type checking and autocomplete (installed automatically with Python)
+
+**Jupyter** (`ms-toolsai.jupyter`)
+
+Run `.ipynb` notebooks directly in VSCode
 
 ### PyCharm
 
 PyCharm works out of the box — no extensions needed.
 
-
 **Notebooks:** PyCharm Professional runs Jupyter notebooks natively. PyCharm Community does not — use the terminal instead:
+
 ```bash
 jupyter notebook
 ```
@@ -29,20 +39,23 @@ jupyter notebook
 ## Quick Setup
 
 **Linux / macOS**
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
 **Windows**
+
 ```bash
 python -m venv .venv
-.venv\Scripts\activate
+.venvScriptsactivate
 ```
 
 ### 2. Install dependencies
 
 **Simulation (your laptop/desktop):**
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -62,20 +75,22 @@ http://kvati.local:8000
 ```
 
 The dashboard lets you:
-- See the robot's live camera feed
-- Open and stop tasks
-- View task logs in real time
-- Monitor battery voltage
+
+-   See the robot's live camera feed
+-   Open and stop tasks
+-   View task logs in real time
+-   Monitor battery voltage
 
 The dashboard must be running before you can deploy a task with `launch.py --run`. It starts automatically on boot — no action needed.
-
 
 ## Running a task
 
 All tasks are launched through `launch.py` from the project root.
 
 ### Simulation run
+
 ---
+
 ```bash
 python launch.py --sim --task <TASK NAME> 
 ```
@@ -83,7 +98,9 @@ python launch.py --sim --task <TASK NAME>
 Godot is downloaded automatically on the first run. A URL is printed in the terminal — open it in a browser to see the live camera feed and controls.
 
 ### Real robot run
+
 ---
+
 ```bash
 # By bot hostname (.local mDNS)
 python launch.py --run --bot <bot_name> 
@@ -99,13 +116,12 @@ This packages the task, transfers it to the robot over HTTP, and starts the serv
 ### Stop a task on the robot
 
 ---
+
 ```bash
 python launch.py --stop --bot <bot_name>
 ```
 
-
 ## All flags
-
 
 ```
 python launch.py --help
@@ -138,4 +154,3 @@ The interface polls `/status` every few hundred milliseconds with a GET request.
 **Changing configuration**
 
 Sliders and input fields send their values to endpoints like `/update_config` or `/update_hsv` as POST requests with a JSON body. The server updates its in-memory config object immediately, so changes take effect on the next processing cycle without restarting anything. The new values are also written back to the relevant YAML file in `config/` so they persist across restarts.
-

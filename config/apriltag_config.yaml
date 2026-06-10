@@ -1,0 +1,26 @@
+# Tag ID -> sign type. IDs reference GodotSimulation/ducky-bot/textures/tag36h11/tag36_11_000XX.png
+sign_tags:
+  stop: [0]
+  yield: [1]
+  no_entry: [2]
+  one_way_left: [3]
+  one_way_right: [4]
+  pedestrian: [5]
+  duck_crossing: [6]
+
+# Stop sign: hold for this many seconds once close enough, then resume.
+stop_duration_s: 4.0
+stop_trigger_area: 3500
+
+# Yield sign: brief slowdown.
+yield_slowdown_factor: 0.5
+yield_duration_s: 1.5
+yield_trigger_area: 2500
+
+# Pedestrian / duck-crossing: slowdown, full stop only if a duckie is on the road.
+duck_crossing_slowdown_factor: 0.4
+duck_crossing_trigger_area: 2000
+duck_stop_area: 4000
+
+# Per-tag re-trigger cooldown once the robot has reacted to a sign.
+sign_cooldown_s: 6.0
