@@ -1,4 +1,5 @@
 import os
+import random
 import time
 from collections import deque
 from typing import Tuple
@@ -35,11 +36,16 @@ class TrafficNavigationAgent:
         self.duck_crossing_trigger_area    = cfg.get('duck_crossing_trigger_area', 2000)
         self.duck_stop_area                = cfg.get('duck_stop_area', 4000)
         self.sign_cooldown_s               = cfg.get('sign_cooldown_s', 6.0)
+        self.turn_trigger_area             = cfg.get('turn_trigger_area', 3000)
+        self.turn_duration_s               = cfg.get('turn_duration_s', 2.0)
+        self.turn_speed                    = cfg.get('turn_speed', 0.2)
+        self.turn_bias                     = cfg.get('turn_bias', 0.25)
 
         self.lane_agent = LaneServoingAgent()
 
-        self.state          = 'DRIVE'  # DRIVE | STOPPED | YIELDING | DUCK_WAIT
+        self.state          = 'DRIVE'  # DRIVE | STOPPED | YIELDING | DUCK_WAIT | TURNING
         self._state_until   = 0.0
+        self._turn_direction = None  # 'left' | 'right', set while TURNING
         self._cooldowns     = {}  # tag_id -> timestamp until which re-triggering is suppressed
         self._visible_tags  = set()  # tag ids seen in the previous frame
         self.event_log      = deque(maxlen=20)
@@ -83,8 +89,9 @@ class TrafficNavigationAgent:
 
     def reset(self) -> None:
         self.lane_agent._prev_error = 0.0
-        self.state        = 'DRIVE'
-        self._state_until = 0.0
+        self.state           = 'DRIVE'
+        self._state_until    = 0.0
+        self._turn_direction = None
         self._cooldowns.clear()
         self._visible_tags.clear()
 
@@ -137,10 +144,19 @@ class TrafficNavigationAgent:
                 self._cooldowns[tag.tag_id] = now + self.sign_cooldown_s
                 self._log(f"{sign_type.replace('_', ' ').upper()} sign (id={tag.tag_id}) -> watching for duckies")
 
-            elif sign_type in ('no_entry', 'one_way_left', 'one_way_right'):
+            elif sign_type in ('one_way_left', 'one_way_right', 'no_entry') and tag.area >= self.turn_trigger_area:
+                if sign_type == 'one_way_left':
+                    direction = 'left'
+                elif sign_type == 'one_way_right':
+                    direction = 'right'
+                else:  # no_entry: straight is blocked, pick the remaining turn at random
+                    direction = random.choice(('left', 'right'))
+
+                self.state           = 'TURNING'
+                self._state_until    = now + self.turn_duration_s
+                self._turn_direction = direction
                 self._cooldowns[tag.tag_id] = now + self.sign_cooldown_s
-                self._log(f"WARNING: {sign_type.replace('_', ' ').upper()} sign (id={tag.tag_id}) "
-                          f"detected - no alternate route on this loop")
+                self._log(f"{sign_type.replace('_', ' ').upper()} sign (id={tag.tag_id}) -> turning {direction}")
 
         state_remaining = 0.0
 
@@ -158,6 +174,19 @@ class TrafficNavigationAgent:
             else:
                 left  *= self.yield_slowdown_factor
                 right *= self.yield_slowdown_factor
+
+        elif self.state == 'TURNING':
+            state_remaining = max(0.0, self._state_until - now)
+            if now >= self._state_until:
+                self.state           = 'DRIVE'
+                self._turn_direction = None
+            else:
+                if self._turn_direction == 'left':
+                    left, right = self.turn_speed - self.turn_bias, self.turn_speed + self.turn_bias
+                else:
+                    left, right = self.turn_speed + self.turn_bias, self.turn_speed - self.turn_bias
+                left  = float(np.clip(left, 0.0, 1.0))
+                right = float(np.clip(right, 0.0, 1.0))
 
         elif self.state == 'DUCK_WAIT':
             if self._duck_ahead(image):

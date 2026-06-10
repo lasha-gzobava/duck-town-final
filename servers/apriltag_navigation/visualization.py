@@ -8,6 +8,7 @@ _STATE_COLORS = {
     'STOPPED':   (0, 0, 255),
     'YIELDING':  (0, 255, 255),
     'DUCK_WAIT': (0, 165, 255),
+    'TURNING':   (255, 0, 255),
 }
 
 

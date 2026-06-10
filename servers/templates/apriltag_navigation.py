@@ -207,6 +207,7 @@ _JS = '''
         STOPPED: 'var(--accent-red)',
         YIELDING: '#f1c40f',
         DUCK_WAIT: 'var(--accent-orange)',
+        TURNING: '#ff00ff',
     };
 
     function refreshNavStatus() {

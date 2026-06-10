@@ -325,9 +325,9 @@ GodotSimulation/ducky-bot/scenes/
 |--------|-----------|----------|
 | 0 | `stop` | Stop for `stop_duration_s` (default 4s), then resume |
 | 1 | `yield` | Slow to `yield_slowdown_factor` for `yield_duration_s` |
-| 2 | `no_entry` | Log warning only (no alternate route on the loop) |
-| 3 | `one_way_left` | Log warning only |
-| 4 | `one_way_right` | Log warning only |
+| 2 | `no_entry` | Straight ahead is blocked — turn left or right (picked at random) |
+| 3 | `one_way_left` | Mandatory turn left |
+| 4 | `one_way_right` | Mandatory turn right |
 | 5 | `pedestrian` | Slow down; full stop only if a duckie is detected ahead |
 | 6 | `duck_crossing` | Same as pedestrian |
 
@@ -341,9 +341,10 @@ lights are explicitly out of scope — the only stop trigger is the `stop` tag.
 1. `left, right = self.lane_agent.compute_commands(image)` — normal lane following, unchanged.
 2. `apriltag_detector.detect_tags(bgr)` — `cv2.aruco.ArucoDetector` on `DICT_APRILTAG_36h11`, returns id/area/center/corners per tag.
 3. `sign_rules.classify_tag(tag_id)` — maps tag id to sign type via `apriltag_config.yaml`.
-4. A small state machine (`DRIVE` / `STOPPED` / `YIELDING` / `DUCK_WAIT`) reacts once a tag's pixel area crosses its `*_trigger_area` threshold (closer = larger area), with a per-tag `sign_cooldown_s` to avoid re-triggering on the same sign every frame.
+4. A small state machine (`DRIVE` / `STOPPED` / `YIELDING` / `DUCK_WAIT` / `TURNING`) reacts once a tag's pixel area crosses its `*_trigger_area` threshold (closer = larger area), with a per-tag `sign_cooldown_s` to avoid re-triggering on the same sign every frame.
 5. `DUCK_WAIT` lazily creates an `ObjectDetectionAgent` (from `tasks.object_detection`) to check for a `duckie` bbox ahead before forcing a full stop — degrades gracefully (just slows down) if no `.onnx` model is present.
-6. Debug info (`detected_signs`, `state`, `state_remaining`, `event_log`) is merged into `last_debug_info` for `/status` and the visualization overlay.
+6. `TURNING` (triggered by `no_entry` / `one_way_left` / `one_way_right` crossing `turn_trigger_area`) overrides the lane-following wheel speeds for `turn_duration_s`: `left/right = turn_speed ∓ turn_bias` (sign depends on `_turn_direction`, `'left'` or `'right'`). `one_way_left`/`one_way_right` set the direction directly; `no_entry` picks `random.choice(('left', 'right'))` since straight is the blocked option.
+7. Debug info (`detected_signs`, `state`, `state_remaining`, `event_log`) is merged into `last_debug_info` for `/status` and the visualization overlay.
 
 ### Sign Placement Caveat
 
@@ -378,6 +379,21 @@ below the panel's bottom edge (`size.y = 0.085` vs. the panel's bottom at
 `y = 0.0895`). A taller post overlaps the tag panel in Y and — since the post
 sits closer to the camera in Z than the tag texture — visually occludes part
 of the AprilTag, breaking `cv2.aruco`'s quad detection.
+
+### Turn-Choice Sign Caveat
+
+`no_entry` / `one_way_left` / `one_way_right` drive a `TURNING` state that
+overrides the lane-following wheel speeds with a fixed `turn_speed ±
+turn_bias` differential for `turn_duration_s` (`config/apriltag_config.yaml`).
+This is a **starting behavior only** — `lane_follower.tscn` is a single loop
+with no branching road geometry, so a "turn" currently just nudges the robot
+toward the lane edge for a couple of seconds and then hands control back to
+`LaneServoingAgent`, which re-centers it. To make the turn actually lead
+somewhere, add a branching intersection to the map (`docs/MAP_MAKER.md`),
+place the corresponding sign(s) before it, and retune `turn_trigger_area` /
+`turn_duration_s` / `turn_speed` / `turn_bias` against the live tag-area
+readout, the same way `*_trigger_area` values are calibrated for the other
+signs.
 
 ---
 

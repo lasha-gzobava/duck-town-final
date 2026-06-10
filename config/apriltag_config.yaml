@@ -24,3 +24,11 @@ duck_stop_area: 4000
 
 # Per-tag re-trigger cooldown once the robot has reacted to a sign.
 sign_cooldown_s: 6.0
+
+# Intersection turn-choice signs: one_way_left/one_way_right are mandatory
+# turns; no_entry blocks the straight option, so the remaining left/right
+# turn is picked at random.
+turn_trigger_area: 3000
+turn_duration_s: 2.0
+turn_speed: 0.2
+turn_bias: 0.25
