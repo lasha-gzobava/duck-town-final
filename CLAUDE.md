@@ -355,18 +355,31 @@ road-edge coordinates. It has three junctions: **J1** T-junction `(0.9, 4.5)`
 T-junction `(2.7, 2.1)` (arms W/E/S, straight-N blocked). The DuckieBot spawns
 at `(1.25, 4.6)` heading **−X (west)** toward J1.
 
-The 6 `Signs/Sign_*` instances form a single self-closing loop that exercises
-every sign type once per lap, each on the approach's shoulder or in the
-junction's blocked arm (facing oncoming traffic):
+**Routing avoids the sharp geometry.** The top-right corner (the
+`C8_3 ╗ → C8_4 ╝ → C7_4 ╔` hairpin) and the center spur (`C4_5 ╝ → C3_5 ╔`)
+are tight back-to-back S-curves the lane-follower cannot hold at `base_speed`
+— the robot gets stuck there. So the signs route it on the **left rectangle
+only** (J1 → down C1 → bottom road → up C3 → J2 → R7 back to J1), which uses
+only gentle 90° `tile_curve` corners and never visits J3 or the hairpin. The
+loop is counter-clockwise, so every forced turn is a **left** turn; J1 is
+always entered from the east and J2 always from the south, making the route
+deterministic and self-sustaining.
+
+The 5 `Signs/Sign_*` instances (each on the approach's shoulder or in the
+junction's blocked arm, facing oncoming traffic):
 
 | Sign | Tag | Pos `(X,Z)` | Role |
 |------|-----|-------------|------|
-| `Sign_OneWayLeft_J1` | 3 | `0.6, 4.5`  | in J1's blocked-W arm; forces left (S) down the C1 leg |
+| `Sign_NoEntry_J1`    | 2 | `0.6, 4.65` | J1 blocked-W arm; `no_entry` + `one_way_left` |
+| `Sign_OneWayLeft_J1` | 3 | `0.6, 4.35` | together = deterministic left (S) down the C1 leg |
 | `Sign_Yield_C1`      | 1 | `0.6, 5.7`  | mid-road slowdown on the long south straight |
-| `Sign_Stop_J2`       | 0 | `2.4, 4.85` | stop at the 4-way's S-approach "red line" |
-| `Sign_NoEntry_J3`    | 2 | `2.55, 1.85`| J3's blocked-N arm; `no_entry` + `one_way_right` |
-| `Sign_OneWayRight_J3`| 4 | `2.85, 1.85`| together = deterministic right turn onto top road |
-| `Sign_Yield_Top`     | 1 | `3.9, 2.4`  | slowdown before the right-side descent |
+| `Sign_Stop_J2`       | 0 | `2.4, 4.8`  | stop at the 4-way's S-approach "red line" |
+| `Sign_OneWayLeft_J2` | 3 | `2.4, 4.5`  | forces left (W) onto R7 back toward J1 |
+
+This exercises `no_entry`, `one_way_left`, `stop`, and `yield` each lap. To
+also test `one_way_right`, swap a `one_way_left` tag (id 3 → 4) — but note the
+loop's geometry only supports left turns, so a right turn aims the robot at the
+sharp side of the map.
 
 Signs spanning an **X-facing** plane (robot travels along X) use the 90°-about-Y
 basis `(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08)`; **Z-facing** ones
@@ -375,9 +388,11 @@ two-sided, the basis only sets which plane the tag spans, not which lone
 direction it is seen from. These are **starting coordinates** — run
 `python launch.py --sim --task apriltag_navigation` and use the live tag-area
 readout in the "Sign Detection" UI card to recalibrate the `*_trigger_area`
-values in `config/apriltag_config.yaml`. If a forced turn goes the wrong way,
-swap the `one_way_left`/`one_way_right` tag on that sign (left/right is relative
-to the robot's heading).
+values in `config/apriltag_config.yaml` (these were lowered to 1000–1500 to
+match the small sim tags, whose pixel area peaks in the low thousands at
+~0.3m). If a forced turn goes the wrong way, swap the
+`one_way_left`/`one_way_right` tag on that sign (left/right is relative to the
+robot's heading).
 
 **Signs are two-sided.** `obj_apriltag_sign.tscn` has two tag PlaneMeshes:
 `texture` (normal toward local `+Z`) and `texture_back`, a 180°-about-**Y**

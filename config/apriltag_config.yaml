@@ -9,13 +9,15 @@ sign_tags:
   duck_crossing: [6]
 
 # Stop sign: hold for this many seconds once close enough, then resume.
+# Trigger areas tuned to the small (65mm) sim tags: observed pixel areas peak
+# in the low thousands at ~0.3m head-on, so thresholds sit well below that.
 stop_duration_s: 4.0
-stop_trigger_area: 3500
+stop_trigger_area: 1500
 
 # Yield sign: brief slowdown.
 yield_slowdown_factor: 0.5
 yield_duration_s: 1.5
-yield_trigger_area: 2500
+yield_trigger_area: 1000
 
 # Pedestrian / duck-crossing: slowdown, full stop only if a duckie is on the road.
 duck_crossing_slowdown_factor: 0.4
@@ -34,7 +36,7 @@ sign_cooldown_s: 6.0
 # omega = (2 * turn_bias) * max_speed / baseline (Moveee.gd: max_speed=1.0, baseline=0.10)
 # -> turn_bias=0.08 gives omega ~= 1.6 rad/s; over turn_duration_s=1.0s that's
 #    ~92 deg, i.e. roughly a 90-degree turn instead of a multi-rotation spin.
-turn_trigger_area: 3000
+turn_trigger_area: 1200
 turn_duration_s: 1.0
 turn_speed: 0.2
 turn_bias: 0.08

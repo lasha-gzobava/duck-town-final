@@ -151,29 +151,25 @@ transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 5.1,
 
 [node name="Signs" type="Node3D" parent="." unique_id=1548431569]
 
-[node name="Sign_OneWayLeft_J1" parent="Signs" unique_id=1548431573 instance=ExtResource("6_atag")]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.6, 0.015, 4.5)
+[node name="Sign_NoEntry_J1" parent="Signs" unique_id=1548431573 instance=ExtResource("6_atag")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.6, 0.015, 4.65)
+sign_texture = ExtResource("7_tag02")
+
+[node name="Sign_OneWayLeft_J1" parent="Signs" unique_id=1548431570 instance=ExtResource("6_atag")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.6, 0.015, 4.35)
 sign_texture = ExtResource("8_tag03")
 
-[node name="Sign_Yield_C1" parent="Signs" unique_id=1548431570 instance=ExtResource("6_atag")]
+[node name="Sign_Yield_C1" parent="Signs" unique_id=1548431571 instance=ExtResource("6_atag")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.015, 5.7)
 sign_texture = ExtResource("11_tag01")
 
-[node name="Sign_Stop_J2" parent="Signs" unique_id=1548431571 instance=ExtResource("6_atag")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 0.015, 4.85)
+[node name="Sign_Stop_J2" parent="Signs" unique_id=1548431572 instance=ExtResource("6_atag")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 0.015, 4.8)
 sign_texture = ExtResource("10_tag00")
 
-[node name="Sign_NoEntry_J3" parent="Signs" unique_id=1548431572 instance=ExtResource("6_atag")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.55, 0.015, 1.85)
-sign_texture = ExtResource("7_tag02")
-
-[node name="Sign_OneWayRight_J3" parent="Signs" unique_id=1548431577 instance=ExtResource("6_atag")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.85, 0.015, 1.85)
-sign_texture = ExtResource("9_tag04")
-
-[node name="Sign_Yield_Top" parent="Signs" unique_id=1548431576 instance=ExtResource("6_atag")]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 3.9, 0.015, 2.4)
-sign_texture = ExtResource("11_tag01")
+[node name="Sign_OneWayLeft_J2" parent="Signs" unique_id=1548431577 instance=ExtResource("6_atag")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 0.015, 4.5)
+sign_texture = ExtResource("8_tag03")
 
 [node name="DuckieBot" type="CharacterBody3D" parent="." unique_id=865415827 instance=ExtResource("5_n2i8c")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 1.25, 0.155, 4.6)
