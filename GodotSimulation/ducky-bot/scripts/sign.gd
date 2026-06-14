@@ -14,20 +14,24 @@ func _ready() -> void:
 func _apply() -> void:
 	if sign_texture == null or not is_inside_tree():
 		return
-	var mi := $texture as MeshInstance3D
-	if mi == null or mi.mesh == null:
-		return
-	var mat: StandardMaterial3D = mi.get_surface_override_material(0) as StandardMaterial3D
-	if mat == null:
-		var base: StandardMaterial3D = mi.mesh.surface_get_material(0) as StandardMaterial3D
-		mat = base.duplicate() as StandardMaterial3D if base != null else StandardMaterial3D.new()
-		mi.set_surface_override_material(0, mat)
-	mat.albedo_color   = Color.WHITE
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	mat.uv1_scale      = Vector3(1.0, 1.0, 1.0)
-	mat.uv1_offset     = Vector3.ZERO
+	# Apply the same tag to both the front (+Z) and back (-Z) faces so the
+	# sign is detectable from either approach direction.
 	var img := sign_texture.get_image()
-	mat.albedo_texture = ImageTexture.create_from_image(img)
+	var tex := ImageTexture.create_from_image(img)
+	for node_name in ["texture", "texture_back"]:
+		var mi := get_node_or_null(node_name) as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var mat: StandardMaterial3D = mi.get_surface_override_material(0) as StandardMaterial3D
+		if mat == null:
+			var base: StandardMaterial3D = mi.mesh.surface_get_material(0) as StandardMaterial3D
+			mat = base.duplicate() as StandardMaterial3D if base != null else StandardMaterial3D.new()
+			mi.set_surface_override_material(0, mat)
+		mat.albedo_color   = Color.WHITE
+		mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		mat.uv1_scale      = Vector3(1.0, 1.0, 1.0)
+		mat.uv1_offset     = Vector3.ZERO
+		mat.albedo_texture = tex
 
 
 func _fix_import(tex: Texture2D) -> void:

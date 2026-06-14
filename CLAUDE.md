@@ -315,7 +315,7 @@ config/
 └── apriltag_config.yaml      # Tag id -> sign type, trigger areas, durations
 
 GodotSimulation/ducky-bot/scenes/
-├── maps/apriltag_navigation.tscn      # lane_follower.tscn + 7 sign instances
+├── maps/apriltag_navigation_fork.tscn # tile-grid road map + 6 sign instances (the scene launch.py loads)
 └── objects/obj_apriltag_sign.tscn     # generic post+panel+texture sign (sign.gd)
 ```
 
@@ -348,24 +348,55 @@ lights are explicitly out of scope — the only stop trigger is the `stop` tag.
 
 ### Sign Placement Caveat
 
-`apriltag_navigation.tscn` places the 7 sign instances (`Signs/Sign_*`) in a
-row along `x=3.622817, z=4.3..7.9`, directly ahead of the DuckieBot's spawn
-point/heading, as a **starting layout only** — `lane_follower.tscn` is a
-single baked mesh with no tile grid, so exact road-edge coordinates couldn't
-be computed without the Godot editor. Open the scene in Godot and drag each
-`Sign_*` node onto the road shoulder per `docs/MAP_MAKER.md` §8, then use the
-live tag-area readout in the "Sign Detection" UI card to recalibrate
-`*_trigger_area` values in `config/apriltag_config.yaml`.
+`apriltag_navigation_fork.tscn` is a **tile-grid** map (`Tiles/Tile_C_R` →
+world `X = 0.6*C + 0.3`, `Z = 0.6*R + 0.3`), so signs are placed at real
+road-edge coordinates. It has three junctions: **J1** T-junction `(0.9, 4.5)`
+(arms N/S/E, straight-W blocked), **J2** 4-way `(2.1, 4.5)`, and **J3**
+T-junction `(2.7, 2.1)` (arms W/E/S, straight-N blocked). The DuckieBot spawns
+at `(1.25, 4.6)` heading **−X (west)** toward J1.
 
-Each sign uses a 180°-Y rotation — `Transform3D(-1, 0, 8.742278e-08, 0, 1, 0,
--8.742278e-08, 0, -1, ...)` — so the tag's `texture` PlaneMesh (whose normal
-points toward the sign's local `+Z` within `obj_apriltag_sign.tscn`) ends up
-facing world `-Z`, i.e. back toward an approaching DuckieBot. Composing this
-with the texture's own local +90°-X rotation is a pure rotation (no
-mirroring), so the tag pattern stays a valid (just possibly rotated) AprilTag.
-When repositioning signs elsewhere on the loop, keep this 180°-Y rotation if
-the sign should face oncoming traffic from the `+Z` side, or use identity
-rotation if the sign instead needs to face traffic approaching from `-Z`.
+The 6 `Signs/Sign_*` instances form a single self-closing loop that exercises
+every sign type once per lap, each on the approach's shoulder or in the
+junction's blocked arm (facing oncoming traffic):
+
+| Sign | Tag | Pos `(X,Z)` | Role |
+|------|-----|-------------|------|
+| `Sign_OneWayLeft_J1` | 3 | `0.6, 4.5`  | in J1's blocked-W arm; forces left (S) down the C1 leg |
+| `Sign_Yield_C1`      | 1 | `0.6, 5.7`  | mid-road slowdown on the long south straight |
+| `Sign_Stop_J2`       | 0 | `2.4, 4.85` | stop at the 4-way's S-approach "red line" |
+| `Sign_NoEntry_J3`    | 2 | `2.55, 1.85`| J3's blocked-N arm; `no_entry` + `one_way_right` |
+| `Sign_OneWayRight_J3`| 4 | `2.85, 1.85`| together = deterministic right turn onto top road |
+| `Sign_Yield_Top`     | 1 | `3.9, 2.4`  | slowdown before the right-side descent |
+
+Signs spanning an **X-facing** plane (robot travels along X) use the 90°-about-Y
+basis `(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08)`; **Z-facing** ones
+(robot travels along Z) use the identity basis. Because the panels are
+two-sided, the basis only sets which plane the tag spans, not which lone
+direction it is seen from. These are **starting coordinates** — run
+`python launch.py --sim --task apriltag_navigation` and use the live tag-area
+readout in the "Sign Detection" UI card to recalibrate the `*_trigger_area`
+values in `config/apriltag_config.yaml`. If a forced turn goes the wrong way,
+swap the `one_way_left`/`one_way_right` tag on that sign (left/right is relative
+to the robot's heading).
+
+**Signs are two-sided.** `obj_apriltag_sign.tscn` has two tag PlaneMeshes:
+`texture` (normal toward local `+Z`) and `texture_back`, a 180°-about-**Y**
+copy of it (`Transform3D(-1, 0, 0, 0, -4.371139e-08, -1, 0, -1,
+-4.371139e-08, 0, 0.13, -0.0006)`) whose normal points toward local `-Z`. A
+180°-Y rotation is a pure rotation (no mirror), so the back face stays a
+valid AprilTag rather than a mirrored (undetectable) one — do NOT make the
+back by flipping the front about X/Z, which mirrors the pattern. `sign.gd`'s
+`_apply()` loops over both meshes so the same `sign_texture` lands on each
+face. Net effect: the same tag is detectable from either approach direction,
+so a sign no longer has to be pre-aimed at one specific oncoming side.
+
+Each sign instance's own transform still rotates the whole post. A 180°-Y
+instance rotation — `Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08,
+0, -1, ...)` — puts the (now two-sided) panel's faces along world `±Z`;
+identity puts them along world `∓Z`; the along-X transforms
+(`±4.371139e-08` form) put them along world `±X`. Because both faces carry
+the tag, the instance rotation now only controls the panel's *plane*
+(which axis it spans), not which lone direction it can be seen from.
 
 Tags 0-6's PNGs (`GodotSimulation/ducky-bot/textures/tag36h11/tag36_11_0000{0..6}.png`)
 must be imported with `compress/mode=0` (Lossless) — VRAM-compressed (S3TC)
