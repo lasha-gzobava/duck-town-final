@@ -15,6 +15,9 @@ _CONFIG_FILE = os.path.normpath(os.path.join(
     os.path.dirname(__file__), '..', '..', '..', 'config', 'apriltag_config.yaml'
 ))
 
+# Signs that indicate which turn(s) are possible at an upcoming intersection.
+_TURN_SIGN_TYPES = ('one_way_left', 'one_way_right', 'no_entry')
+
 
 class TrafficNavigationAgent:
     """Lane following (via LaneServoingAgent) + AprilTag traffic-sign reactions."""
@@ -37,9 +40,9 @@ class TrafficNavigationAgent:
         self.duck_stop_area                = cfg.get('duck_stop_area', 4000)
         self.sign_cooldown_s               = cfg.get('sign_cooldown_s', 6.0)
         self.turn_trigger_area             = cfg.get('turn_trigger_area', 3000)
-        self.turn_duration_s               = cfg.get('turn_duration_s', 2.0)
+        self.turn_duration_s               = cfg.get('turn_duration_s', 1.0)
         self.turn_speed                    = cfg.get('turn_speed', 0.2)
-        self.turn_bias                     = cfg.get('turn_bias', 0.25)
+        self.turn_bias                     = cfg.get('turn_bias', 0.08)
 
         self.lane_agent = LaneServoingAgent()
 
@@ -100,6 +103,11 @@ class TrafficNavigationAgent:
 
         bgr  = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         tags = apriltag_detector.detect_tags(bgr)
+        # Closest (largest-area) tag first, so when two signs are visible at
+        # once (e.g. one_way_left and one_way_right placed close together)
+        # the nearer sign wins instead of whichever cv2.aruco happened to
+        # return first.
+        tags = sorted(tags, key=lambda t: t.area, reverse=True)
         now  = time.time()
 
         detected_signs = []
@@ -144,19 +152,33 @@ class TrafficNavigationAgent:
                 self._cooldowns[tag.tag_id] = now + self.sign_cooldown_s
                 self._log(f"{sign_type.replace('_', ' ').upper()} sign (id={tag.tag_id}) -> watching for duckies")
 
-            elif sign_type in ('one_way_left', 'one_way_right', 'no_entry') and tag.area >= self.turn_trigger_area:
-                if sign_type == 'one_way_left':
-                    direction = 'left'
-                elif sign_type == 'one_way_right':
-                    direction = 'right'
-                else:  # no_entry: straight is blocked, pick the remaining turn at random
-                    direction = random.choice(('left', 'right'))
+            elif sign_type in _TURN_SIGN_TYPES and tag.area >= self.turn_trigger_area:
+                # Mandatory directions are signed explicitly via one_way_left /
+                # one_way_right. If only one of those is present (alone, or
+                # together with no_entry blocking straight), that's the only
+                # way to go -> take it directly. Otherwise (e.g. a bare
+                # no_entry, or both one_way signs together) more than one way
+                # is open -> pick randomly among them.
+                mandatory = set()
+                if any(d['sign_type'] == 'one_way_left' for d in detected_signs):
+                    mandatory.add('left')
+                if any(d['sign_type'] == 'one_way_right' for d in detected_signs):
+                    mandatory.add('right')
+
+                available = mandatory if mandatory else {'left', 'right'}
+                direction = next(iter(available)) if len(available) == 1 else random.choice(sorted(available))
 
                 self.state           = 'TURNING'
                 self._state_until    = now + self.turn_duration_s
                 self._turn_direction = direction
-                self._cooldowns[tag.tag_id] = now + self.sign_cooldown_s
-                self._log(f"{sign_type.replace('_', ' ').upper()} sign (id={tag.tag_id}) -> turning {direction}")
+                for d in detected_signs:
+                    if d['sign_type'] in _TURN_SIGN_TYPES:
+                        self._cooldowns[d['tag_id']] = now + self.sign_cooldown_s
+
+                if len(available) == 1:
+                    self._log(f"{sign_type.replace('_', ' ').upper()} sign (id={tag.tag_id}) -> only one way possible, turning {direction}")
+                else:
+                    self._log(f"{sign_type.replace('_', ' ').upper()} sign (id={tag.tag_id}) -> {len(available)} ways possible, randomly turning {direction}")
 
         state_remaining = 0.0
 

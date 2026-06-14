@@ -25,10 +25,16 @@ duck_stop_area: 4000
 # Per-tag re-trigger cooldown once the robot has reacted to a sign.
 sign_cooldown_s: 6.0
 
-# Intersection turn-choice signs: one_way_left/one_way_right are mandatory
-# turns; no_entry blocks the straight option, so the remaining left/right
-# turn is picked at random.
+# Intersection turn-choice signs: one_way_left/one_way_right mark a turn as
+# mandatory. If the signs visible at an intersection name only ONE direction
+# (a lone one_way_left/one_way_right, or no_entry + exactly one of them), the
+# robot takes that single available way directly. If MULTIPLE directions are
+# possible (a bare no_entry with no one_way sign, or both one_way_left and
+# one_way_right together), the robot picks randomly among them.
+# omega = (2 * turn_bias) * max_speed / baseline (Moveee.gd: max_speed=1.0, baseline=0.10)
+# -> turn_bias=0.08 gives omega ~= 1.6 rad/s; over turn_duration_s=1.0s that's
+#    ~92 deg, i.e. roughly a 90-degree turn instead of a multi-rotation spin.
 turn_trigger_area: 3000
-turn_duration_s: 2.0
+turn_duration_s: 1.0
 turn_speed: 0.2
-turn_bias: 0.25
+turn_bias: 0.08

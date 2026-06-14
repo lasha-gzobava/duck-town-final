@@ -339,7 +339,7 @@ lights are explicitly out of scope — the only stop trigger is the `stop` tag.
 
 `TrafficNavigationAgent.compute_commands(image)`:
 1. `left, right = self.lane_agent.compute_commands(image)` — normal lane following, unchanged.
-2. `apriltag_detector.detect_tags(bgr)` — `cv2.aruco.ArucoDetector` on `DICT_APRILTAG_36h11`, returns id/area/center/corners per tag.
+2. `apriltag_detector.detect_tags(bgr)` — `cv2.aruco.ArucoDetector` on `DICT_APRILTAG_36h11`, returns id/area/center/corners per tag, then sorted by `area` descending (closest tag first) so that when two signs are visible in the same frame (e.g. `one_way_left`/`one_way_right` placed close together), the nearer one wins instead of whichever `cv2.aruco` happened to return first.
 3. `sign_rules.classify_tag(tag_id)` — maps tag id to sign type via `apriltag_config.yaml`.
 4. A small state machine (`DRIVE` / `STOPPED` / `YIELDING` / `DUCK_WAIT` / `TURNING`) reacts once a tag's pixel area crosses its `*_trigger_area` threshold (closer = larger area), with a per-tag `sign_cooldown_s` to avoid re-triggering on the same sign every frame.
 5. `DUCK_WAIT` lazily creates an `ObjectDetectionAgent` (from `tasks.object_detection`) to check for a `duckie` bbox ahead before forcing a full stop — degrades gracefully (just slows down) if no `.onnx` model is present.
@@ -385,12 +385,26 @@ of the AprilTag, breaking `cv2.aruco`'s quad detection.
 `no_entry` / `one_way_left` / `one_way_right` drive a `TURNING` state that
 overrides the lane-following wheel speeds with a fixed `turn_speed ±
 turn_bias` differential for `turn_duration_s` (`config/apriltag_config.yaml`).
+
+The wheel differential maps to angular velocity in
+`GodotSimulation/ducky-bot/scripts/Moveee.gd` as
+`omega = (v_right - v_left) / baseline` where `v_* = wheel_cmd * max_speed`
+(`max_speed=1.0`, `baseline=0.10`). So `omega = (2 * turn_bias) * 10`. The
+defaults `turn_bias=0.08`, `turn_duration_s=1.0` give `omega ~= 1.6 rad/s`,
+i.e. roughly a 90-degree turn. Pushing `turn_bias` much higher (e.g. the
+original 0.25, which clips one wheel to 0) drives `omega` up to several
+rad/s and over a 1-2s duration the robot spins multiple full rotations
+instead of turning — if retuning, keep `turn_bias` small and adjust
+`turn_duration_s` to hit the desired turn angle (`angle = omega *
+turn_duration_s`).
+
 This is a **starting behavior only** — `lane_follower.tscn` is a single loop
-with no branching road geometry, so a "turn" currently just nudges the robot
-toward the lane edge for a couple of seconds and then hands control back to
-`LaneServoingAgent`, which re-centers it. To make the turn actually lead
-somewhere, add a branching intersection to the map (`docs/MAP_MAKER.md`),
-place the corresponding sign(s) before it, and retune `turn_trigger_area` /
+with no branching road geometry, so a "turn" currently rotates the robot
+~90° in place (while still moving forward at `turn_speed`) and then hands
+control back to `LaneServoingAgent`, which re-centers it on whatever lane
+markings are now in front of it. To make the turn actually lead somewhere,
+add a branching intersection to the map (`docs/MAP_MAKER.md`), place the
+corresponding sign(s) before it, and retune `turn_trigger_area` /
 `turn_duration_s` / `turn_speed` / `turn_bias` against the live tag-area
 readout, the same way `*_trigger_area` values are calibrated for the other
 signs.
