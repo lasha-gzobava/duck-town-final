@@ -31,6 +31,7 @@ Each sub-directory is a student task with `packages/` (Python logic) and `notebo
 - `object_detection/` — ONNX inference + YOLO-style detection
 - `visual_lane_servoing/` — **primary focus, see deep-dive below**
 - `project/` — full navigation task (Dijkstra pathfinding over road map)
+- `apriltag_navigation/` — lane servoing + AprilTag traffic-sign reactions, see deep-dive below
 - `CollisionStuff/` — collision detection helpers
 
 ### `servers/`
@@ -47,6 +48,7 @@ One Flask server per task with `virtual_server.py` (simulation) and `real_server
 | `modcon_config.yaml` | PID gains for encoder control |
 | `object_detection_config.yaml` | Detection confidence thresholds |
 | `project_config.yaml` | Navigation task settings |
+| `apriltag_config.yaml` | Tag ID → sign type map, stop/yield/duck-crossing thresholds |
 
 ### `duckiebot/`
 Hardware drivers — each has a real variant and a `godot_*` variant for simulation:
@@ -77,6 +79,7 @@ python launch.py --sim --task braitenberg
 python launch.py --sim --task modcon
 python launch.py --sim --task object_detection
 python launch.py --sim --task project
+python launch.py --sim --task apriltag_navigation
 ```
 
 The launcher auto-downloads Godot if missing, starts the Godot simulation, then starts the Flask server. Web UI served at `http://localhost:5000` (or next available port).
@@ -286,6 +289,128 @@ Interactive tuning dashboard:
 
 ---
 
+## AprilTag Traffic-Sign Navigation
+
+Wraps `LaneServoingAgent` (unchanged, via composition) and adds Duckietown
+AprilTag (tag36h11) traffic-sign detection on top — same pattern as
+`tasks/object_detection`'s `ObjectDetectionAgent`.
+
+### File Map
+
+```
+tasks/apriltag_navigation/
+└── packages/
+    ├── agent.py              # TrafficNavigationAgent — wraps LaneServoingAgent
+    ├── apriltag_detector.py  # cv2.aruco DICT_APRILTAG_36h11 wrapper -> TagDetection list
+    └── sign_rules.py         # tag id -> sign type (student-editable)
+
+servers/apriltag_navigation/
+├── virtual_server.py         # Flask app for simulation
+└── visualization.py          # Tag overlay + lane 4-panel + state strip
+
+servers/templates/
+└── apriltag_navigation.py    # HTML/JS UI (Sign Detection card + lane servoing controls)
+
+config/
+└── apriltag_config.yaml      # Tag id -> sign type, trigger areas, durations
+
+GodotSimulation/ducky-bot/scenes/
+├── maps/apriltag_navigation.tscn      # lane_follower.tscn + 7 sign instances
+└── objects/obj_apriltag_sign.tscn     # generic post+panel+texture sign (sign.gd)
+```
+
+### Sign → Tag Mapping (`config/apriltag_config.yaml`)
+
+| Tag ID | Sign type | Behavior |
+|--------|-----------|----------|
+| 0 | `stop` | Stop for `stop_duration_s` (default 4s), then resume |
+| 1 | `yield` | Slow to `yield_slowdown_factor` for `yield_duration_s` |
+| 2 | `no_entry` | Straight ahead is blocked — turn left or right (picked at random) |
+| 3 | `one_way_left` | Mandatory turn left |
+| 4 | `one_way_right` | Mandatory turn right |
+| 5 | `pedestrian` | Slow down; full stop only if a duckie is detected ahead |
+| 6 | `duck_crossing` | Same as pedestrian |
+
+Each sign's tag ID maps to a PNG in
+`GodotSimulation/ducky-bot/textures/tag36h11/tag36_11_000XX.png`. Traffic
+lights are explicitly out of scope — the only stop trigger is the `stop` tag.
+
+### How It Works
+
+`TrafficNavigationAgent.compute_commands(image)`:
+1. `left, right = self.lane_agent.compute_commands(image)` — normal lane following, unchanged.
+2. `apriltag_detector.detect_tags(bgr)` — `cv2.aruco.ArucoDetector` on `DICT_APRILTAG_36h11`, returns id/area/center/corners per tag, then sorted by `area` descending (closest tag first) so that when two signs are visible in the same frame (e.g. `one_way_left`/`one_way_right` placed close together), the nearer one wins instead of whichever `cv2.aruco` happened to return first.
+3. `sign_rules.classify_tag(tag_id)` — maps tag id to sign type via `apriltag_config.yaml`.
+4. A small state machine (`DRIVE` / `STOPPED` / `YIELDING` / `DUCK_WAIT` / `TURNING`) reacts once a tag's pixel area crosses its `*_trigger_area` threshold (closer = larger area), with a per-tag `sign_cooldown_s` to avoid re-triggering on the same sign every frame.
+5. `DUCK_WAIT` lazily creates an `ObjectDetectionAgent` (from `tasks.object_detection`) to check for a `duckie` bbox ahead before forcing a full stop — degrades gracefully (just slows down) if no `.onnx` model is present.
+6. `TURNING` (triggered by `no_entry` / `one_way_left` / `one_way_right` crossing `turn_trigger_area`) overrides the lane-following wheel speeds for `turn_duration_s`: `left/right = turn_speed ∓ turn_bias` (sign depends on `_turn_direction`, `'left'` or `'right'`). `one_way_left`/`one_way_right` set the direction directly; `no_entry` picks `random.choice(('left', 'right'))` since straight is the blocked option.
+7. Debug info (`detected_signs`, `state`, `state_remaining`, `event_log`) is merged into `last_debug_info` for `/status` and the visualization overlay.
+
+### Sign Placement Caveat
+
+`apriltag_navigation.tscn` places the 7 sign instances (`Signs/Sign_*`) in a
+row along `x=3.622817, z=4.3..7.9`, directly ahead of the DuckieBot's spawn
+point/heading, as a **starting layout only** — `lane_follower.tscn` is a
+single baked mesh with no tile grid, so exact road-edge coordinates couldn't
+be computed without the Godot editor. Open the scene in Godot and drag each
+`Sign_*` node onto the road shoulder per `docs/MAP_MAKER.md` §8, then use the
+live tag-area readout in the "Sign Detection" UI card to recalibrate
+`*_trigger_area` values in `config/apriltag_config.yaml`.
+
+Each sign uses a 180°-Y rotation — `Transform3D(-1, 0, 8.742278e-08, 0, 1, 0,
+-8.742278e-08, 0, -1, ...)` — so the tag's `texture` PlaneMesh (whose normal
+points toward the sign's local `+Z` within `obj_apriltag_sign.tscn`) ends up
+facing world `-Z`, i.e. back toward an approaching DuckieBot. Composing this
+with the texture's own local +90°-X rotation is a pure rotation (no
+mirroring), so the tag pattern stays a valid (just possibly rotated) AprilTag.
+When repositioning signs elsewhere on the loop, keep this 180°-Y rotation if
+the sign should face oncoming traffic from the `+Z` side, or use identity
+rotation if the sign instead needs to face traffic approaching from `-Z`.
+
+Tags 0-6's PNGs (`GodotSimulation/ducky-bot/textures/tag36h11/tag36_11_0000{0..6}.png`)
+must be imported with `compress/mode=0` (Lossless) — VRAM-compressed (S3TC)
+import of these tiny 10x10 textures destroys the tag's bit pattern and makes
+it undetectable by `cv2.aruco`. Tags 2 and 3 were originally imported as
+VRAM-compressed and have been fixed; if new tag textures are added, verify
+their `.import` file uses `compress/mode=0`.
+
+The sign post (`obj_apriltag_sign.tscn`'s `post` `BoxMesh`) is sized to stay
+below the panel's bottom edge (`size.y = 0.085` vs. the panel's bottom at
+`y = 0.0895`). A taller post overlaps the tag panel in Y and — since the post
+sits closer to the camera in Z than the tag texture — visually occludes part
+of the AprilTag, breaking `cv2.aruco`'s quad detection.
+
+### Turn-Choice Sign Caveat
+
+`no_entry` / `one_way_left` / `one_way_right` drive a `TURNING` state that
+overrides the lane-following wheel speeds with a fixed `turn_speed ±
+turn_bias` differential for `turn_duration_s` (`config/apriltag_config.yaml`).
+
+The wheel differential maps to angular velocity in
+`GodotSimulation/ducky-bot/scripts/Moveee.gd` as
+`omega = (v_right - v_left) / baseline` where `v_* = wheel_cmd * max_speed`
+(`max_speed=1.0`, `baseline=0.10`). So `omega = (2 * turn_bias) * 10`. The
+defaults `turn_bias=0.08`, `turn_duration_s=1.0` give `omega ~= 1.6 rad/s`,
+i.e. roughly a 90-degree turn. Pushing `turn_bias` much higher (e.g. the
+original 0.25, which clips one wheel to 0) drives `omega` up to several
+rad/s and over a 1-2s duration the robot spins multiple full rotations
+instead of turning — if retuning, keep `turn_bias` small and adjust
+`turn_duration_s` to hit the desired turn angle (`angle = omega *
+turn_duration_s`).
+
+This is a **starting behavior only** — `lane_follower.tscn` is a single loop
+with no branching road geometry, so a "turn" currently rotates the robot
+~90° in place (while still moving forward at `turn_speed`) and then hands
+control back to `LaneServoingAgent`, which re-centers it on whatever lane
+markings are now in front of it. To make the turn actually lead somewhere,
+add a branching intersection to the map (`docs/MAP_MAKER.md`), place the
+corresponding sign(s) before it, and retune `turn_trigger_area` /
+`turn_duration_s` / `turn_speed` / `turn_bias` against the live tag-area
+readout, the same way `*_trigger_area` values are calibrated for the other
+signs.
+
+---
+
 ## Configuration Tuning Guide
 
 ### HSV Bounds
@@ -305,6 +430,7 @@ Use the web UI sliders while watching the debug visualization panels. Yellow lin
 ## Key Cross-Task Dependencies
 
 - `servers/object_detection/virtual_server.py` imports `LaneServoingAgent` — object detection task reuses lane following as a baseline behavior
+- `tasks/apriltag_navigation/packages/agent.py` wraps `LaneServoingAgent` and lazily uses `ObjectDetectionAgent` for duck-crossing stops
 - `servers/common.py` — shared by all servers: `make_frame_generator`, `suppress_http_logs`, `shutdown_cleanup`
 - `launcher/ports.py` — `find_available_port()` used by all servers to avoid port conflicts
 - `launcher/config.py` — maps task names to Godot scene paths and server module paths

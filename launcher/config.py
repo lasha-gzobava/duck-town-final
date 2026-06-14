@@ -19,7 +19,8 @@ GODOT_SCENES = {
   'modcon': 'res://scenes/maps/Modconpath.tscn',
   'navigator': 'res://scenes/maps/map_follower.tscn',
   'object_detection': 'res://scenes/maps/lane_detect.tscn',
-  'project': 'res://scenes/maps/test1_actual_map_kiu.tscn',}
+  'project': 'res://scenes/maps/test1_actual_map_kiu.tscn',
+  'apriltag_navigation': 'res://scenes/maps/apriltag_navigation.tscn',}
 
 DEFAULT_WEB_PORT = 5000
 DEFAULT_DEPLOY_PORT = 8000

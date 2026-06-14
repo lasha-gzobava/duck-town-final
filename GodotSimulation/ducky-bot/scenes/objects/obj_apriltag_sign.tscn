@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://dn1g7sf2atag1"]
+
+[ext_resource type="Script" uid="uid://obyuy0tcovi0" path="res://scripts/sign.gd" id="1_atag"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_post"]
+albedo_color = Color(0.36862746, 0.2509804, 0.16470589, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_post"]
+material = SubResource("StandardMaterial3D_post")
+size = Vector3(0.02, 0.085, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_panel"]
+albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_panel"]
+material = SubResource("StandardMaterial3D_panel")
+size = Vector3(0.081, 0.081, 0.005)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tag"]
+texture_filter = 0
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_tag"]
+material = SubResource("StandardMaterial3D_tag")
+size = Vector2(0.065, 0.065)
+
+[node name="ObjAprilTagSign" type="Node3D" unique_id=2810573301]
+script = ExtResource("1_atag")
+
+[node name="post" type="MeshInstance3D" parent="." unique_id=2810573302]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0425, 0)
+mesh = SubResource("BoxMesh_post")
+
+[node name="panel" type="MeshInstance3D" parent="." unique_id=2810573303]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13, 0.0026887022)
+mesh = SubResource("BoxMesh_panel")
+
+[node name="texture" type="MeshInstance3D" parent="." unique_id=2810573304]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0.13, 0.006)
+mesh = SubResource("PlaneMesh_tag")

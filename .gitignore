@@ -59,3 +59,17 @@ tasks/object_detection/dataset/*
 
 # Model artifacts
 tasks/object_detection/models/*
+/GodotSimulation/ducky-bot/models/circleroad_Seamless-Black-Asphalt-Road-Texture.webp
+/GodotSimulation/ducky-bot/models/circleroad_Seamless-Black-Asphalt-Road-Texture.webp.import
+/GodotSimulation/ducky-bot/models/CircularRoad_Final_curve.png
+/GodotSimulation/ducky-bot/models/CircularRoad_Final_curve.png.import
+/GodotSimulation/ducky-bot/models/CircularRoad_Final_straight_Whiteboarder.png
+/GodotSimulation/ducky-bot/models/CircularRoad_Final_straight_Whiteboarder.png.import
+/GodotSimulation/ducky-bot/models/lane_follower_Final_curve.png
+/GodotSimulation/ducky-bot/models/lane_follower_Final_curve.png.import
+/GodotSimulation/ducky-bot/models/lane_follower_Final_straight_Whiteboarder.png
+/GodotSimulation/ducky-bot/models/lane_follower_Final_straight_Whiteboarder.png.import
+/GodotSimulation/ducky-bot/models/Modcon_Final_straight_Whiteboarder.png
+/GodotSimulation/ducky-bot/models/Modcon_Final_straight_Whiteboarder.png.import
+/GodotSimulation/ducky-bot/models/road_Seamless-Black-Asphalt-Road-Texture.webp
+/GodotSimulation/ducky-bot/models/road_Seamless-Black-Asphalt-Road-Texture.webp.import
