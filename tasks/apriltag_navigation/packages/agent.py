@@ -44,10 +44,20 @@ class TrafficNavigationAgent:
         self.turn_speed                    = cfg.get('turn_speed', 0.2)
         self.turn_bias                     = cfg.get('turn_bias', 0.08)
 
+        self.stop_line_lower1   = np.array(cfg.get('stop_line_hsv_lower1', [0, 120, 80]))
+        self.stop_line_upper1   = np.array(cfg.get('stop_line_hsv_upper1', [10, 255, 255]))
+        self.stop_line_lower2   = np.array(cfg.get('stop_line_hsv_lower2', [170, 120, 80]))
+        self.stop_line_upper2   = np.array(cfg.get('stop_line_hsv_upper2', [180, 255, 255]))
+        self.stop_line_row_threshold    = cfg.get('stop_line_row_threshold', 0.85)
+        self.stop_line_min_pixels       = cfg.get('stop_line_min_pixels', 30)
+        self.stop_line_search_timeout_s = cfg.get('stop_line_search_timeout_s', 2.5)
+        self.stop_line_creep_speed      = cfg.get('stop_line_creep_speed', 0.08)
+
         self.lane_agent = LaneServoingAgent()
 
-        self.state          = 'DRIVE'  # DRIVE | STOPPED | YIELDING | DUCK_WAIT | TURNING
+        self.state          = 'DRIVE'  # DRIVE | APPROACHING_STOP | STOPPED | YIELDING | DUCK_WAIT | TURNING
         self._state_until   = 0.0
+        self._approach_fallback_at = 0.0  # APPROACHING_STOP: fall back to stopping immediately at this time
         self._turn_direction = None  # 'left' | 'right', set while TURNING
         self._cooldowns     = {}  # tag_id -> timestamp until which re-triggering is suppressed
         self._visible_tags  = set()  # tag ids seen in the previous frame
@@ -89,6 +99,20 @@ class TrafficNavigationAgent:
                 return True
 
         return False
+
+    def _detect_stop_line_row(self, bgr: np.ndarray):
+        """Return the bottom-most row (as a fraction of frame height) where the
+        red stop-line marking is visible, or None if not enough red pixels are seen."""
+        h = bgr.shape[0]
+        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+        mask = cv2.bitwise_or(
+            cv2.inRange(hsv, self.stop_line_lower1, self.stop_line_upper1),
+            cv2.inRange(hsv, self.stop_line_lower2, self.stop_line_upper2),
+        )
+        ys, _ = np.nonzero(mask)
+        if ys.size < self.stop_line_min_pixels:
+            return None
+        return float(ys.max()) / h
 
     def reset(self) -> None:
         self.lane_agent._prev_error = 0.0
@@ -136,10 +160,10 @@ class TrafficNavigationAgent:
                 continue
 
             if sign_type == 'stop' and tag.area >= self.stop_trigger_area:
-                self.state        = 'STOPPED'
-                self._state_until = now + self.stop_duration_s
+                self.state               = 'APPROACHING_STOP'
+                self._approach_fallback_at = now + self.stop_line_search_timeout_s
                 self._cooldowns[tag.tag_id] = now + self.sign_cooldown_s
-                self._log(f"STOP sign (id={tag.tag_id}) -> stopping for {self.stop_duration_s:.0f}s")
+                self._log(f"STOP sign (id={tag.tag_id}) -> approaching stop line")
 
             elif sign_type == 'yield' and tag.area >= self.yield_trigger_area:
                 self.state        = 'YIELDING'
@@ -181,6 +205,22 @@ class TrafficNavigationAgent:
                     self._log(f"{sign_type.replace('_', ' ').upper()} sign (id={tag.tag_id}) -> {len(available)} ways possible, randomly turning {direction}")
 
         state_remaining = 0.0
+
+        if self.state == 'APPROACHING_STOP':
+            row = self._detect_stop_line_row(bgr)
+            if row is not None and row >= self.stop_line_row_threshold:
+                self.state        = 'STOPPED'
+                self._state_until = now + self.stop_duration_s
+                left, right = 0.0, 0.0
+                self._log("Stop line reached -> stopping")
+            elif now >= self._approach_fallback_at:
+                self.state        = 'STOPPED'
+                self._state_until = now + self.stop_duration_s
+                left, right = 0.0, 0.0
+                self._log("No stop line found -> stopping at sign")
+            else:
+                left  = float(np.clip(left,  -self.stop_line_creep_speed, self.stop_line_creep_speed))
+                right = float(np.clip(right, -self.stop_line_creep_speed, self.stop_line_creep_speed))
 
         if self.state == 'STOPPED':
             state_remaining = max(0.0, self._state_until - now)

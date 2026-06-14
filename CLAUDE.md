@@ -341,7 +341,8 @@ lights are explicitly out of scope — the only stop trigger is the `stop` tag.
 1. `left, right = self.lane_agent.compute_commands(image)` — normal lane following, unchanged.
 2. `apriltag_detector.detect_tags(bgr)` — `cv2.aruco.ArucoDetector` on `DICT_APRILTAG_36h11`, returns id/area/center/corners per tag, then sorted by `area` descending (closest tag first) so that when two signs are visible in the same frame (e.g. `one_way_left`/`one_way_right` placed close together), the nearer one wins instead of whichever `cv2.aruco` happened to return first.
 3. `sign_rules.classify_tag(tag_id)` — maps tag id to sign type via `apriltag_config.yaml`.
-4. A small state machine (`DRIVE` / `STOPPED` / `YIELDING` / `DUCK_WAIT` / `TURNING`) reacts once a tag's pixel area crosses its `*_trigger_area` threshold (closer = larger area), with a per-tag `sign_cooldown_s` to avoid re-triggering on the same sign every frame.
+4. A small state machine (`DRIVE` / `APPROACHING_STOP` / `STOPPED` / `YIELDING` / `DUCK_WAIT` / `TURNING`) reacts once a tag's pixel area crosses its `*_trigger_area` threshold (closer = larger area), with a per-tag `sign_cooldown_s` to avoid re-triggering on the same sign every frame.
+   - `stop` triggers `APPROACHING_STOP` (not an immediate stop): the robot creeps forward at `stop_line_creep_speed` while `_detect_stop_line_row` looks for a red stop-line marking (HSV double-range covering both ends of the hue wheel, `stop_line_hsv_*`) via `cv2.inRange`. Once the line's bottom-most row crosses `stop_line_row_threshold` (fraction of frame height), or `stop_line_search_timeout_s` elapses with no line seen, it transitions to `STOPPED` for the same `stop_duration_s` either way — the red line only affects *where* it stops, not *how long*.
 5. `DUCK_WAIT` lazily creates an `ObjectDetectionAgent` (from `tasks.object_detection`) to check for a `duckie` bbox ahead before forcing a full stop — degrades gracefully (just slows down) if no `.onnx` model is present.
 6. `TURNING` (triggered by `no_entry` / `one_way_left` / `one_way_right` crossing `turn_trigger_area`) overrides the lane-following wheel speeds for `turn_duration_s`: `left/right = turn_speed ∓ turn_bias` (sign depends on `_turn_direction`, `'left'` or `'right'`). `one_way_left`/`one_way_right` set the direction directly; `no_entry` picks `random.choice(('left', 'right'))` since straight is the blocked option.
 7. Debug info (`detected_signs`, `state`, `state_remaining`, `event_log`) is merged into `last_debug_info` for `/status` and the visualization overlay.
@@ -373,7 +374,9 @@ junction's blocked arm, facing oncoming traffic):
 | `Sign_NoEntry_J1`    | 2 | `0.6, 4.65` | J1 blocked-W arm; `no_entry` + `one_way_left` |
 | `Sign_OneWayLeft_J1` | 3 | `0.6, 4.35` | together = deterministic left (S) down the C1 leg |
 | `Sign_Yield_C1`      | 1 | `0.6, 5.7`  | mid-road slowdown on the long south straight |
-| `Sign_Stop_J2`       | 0 | `2.4, 4.8`  | stop at the 4-way's S-approach "red line" |
+| `Sign_Stop_J2`       | 0 | `2.4, 4.8`  | stop at the 4-way's S-approach |
+
+A red `StopLine_J2` `PlaneMesh` decal (`StandardMaterial3D`, `albedo_color = Color(0.85, 0.05, 0.05, 1)`, `cull_mode = 2` so it's visible from both sides) sits on the road at `(2.25, 0.016, 4.65)`, between `Sign_Stop_J2` and J2's center — this is the marking `_detect_stop_line_row` looks for.
 | `Sign_OneWayLeft_J2` | 3 | `2.4, 4.5`  | forces left (W) onto R7 back toward J1 |
 
 This exercises `no_entry`, `one_way_left`, `stop`, and `yield` each lap. To

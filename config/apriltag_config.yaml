@@ -14,6 +14,20 @@ sign_tags:
 stop_duration_s: 4.0
 stop_trigger_area: 1500
 
+# Stop line: once the stop sign triggers, creep forward (instead of stopping
+# immediately) until a red stop-line marking on the road reaches near the
+# bottom of the frame, then stop for stop_duration_s. If no red line is seen
+# within stop_line_search_timeout_s, fall back to stopping immediately (same
+# stop_duration_s either way).
+stop_line_hsv_lower1: [0, 120, 80]
+stop_line_hsv_upper1: [10, 255, 255]
+stop_line_hsv_lower2: [170, 120, 80]
+stop_line_hsv_upper2: [180, 255, 255]
+stop_line_row_threshold: 0.85
+stop_line_min_pixels: 30
+stop_line_search_timeout_s: 2.5
+stop_line_creep_speed: 0.08
+
 # Yield sign: brief slowdown.
 yield_slowdown_factor: 0.5
 yield_duration_s: 1.5

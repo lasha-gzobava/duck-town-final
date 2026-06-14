@@ -4,11 +4,12 @@ import numpy as np
 from servers.visual_lane_servoing.visualization import create_lane_visualization
 
 _STATE_COLORS = {
-    'DRIVE':     (0, 200, 0),
-    'STOPPED':   (0, 0, 255),
-    'YIELDING':  (0, 255, 255),
-    'DUCK_WAIT': (0, 165, 255),
-    'TURNING':   (255, 0, 255),
+    'DRIVE':            (0, 200, 0),
+    'APPROACHING_STOP': (0, 128, 255),
+    'STOPPED':          (0, 0, 255),
+    'YIELDING':         (0, 255, 255),
+    'DUCK_WAIT':        (0, 165, 255),
+    'TURNING':          (255, 0, 255),
 }
 
 
