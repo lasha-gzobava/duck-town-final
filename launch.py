@@ -336,7 +336,7 @@ def package_task(task_name):
         return None
 
     def no_pycache(tarinfo):
-        if '__pycache__' in tarinfo.id or tarinfo.id.endswith('.pyc'):
+        if '__pycache__' in tarinfo.name or tarinfo.name.endswith('.pyc'):
             return None
         return tarinfo
 
